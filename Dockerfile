@@ -1,34 +1,50 @@
-FROM arm64v8/debian:stretch
+###############################################################################
+# Copyright 2016-2017 Cavium.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+###############################################################################
+# Mongo DB image for EdgeX Foundry
+FROM arm64v8/ubuntu:zesty
+MAINTAINER Federico Claramonte <fede.claramonte@caviumnetworks.com>
 
-RUN groupadd -r mongodb && useradd -r -g mongodb mongodb
+ENV SLEEP_TIME_BEFORE_CONFIG=10
 
-RUN apt-get update -y && apt-get -y install curl && \
-   curl -O https://fastdl.mongodb.org/linux/mongodb-linux-arm64-ubuntu1604-3.4.10.tgz && \
-   tar -zxvf mongodb-linux-arm64-ubuntu1604-3.4.10.tgz && \
-   mv mongodb-linux-aarch64-ubuntu1604-3.4.10/bin/* /usr/bin/ && \
-   rm mongodb-linux-arm64-ubuntu1604-3.4.10.tgz && \
-   curl -O http://ftp.fr.debian.org/debian/pool/main/o/openssl/libssl1.0.0_1.0.1t-1+deb8u6_arm64.deb && \
-   dpkg -i libssl1.0.0_1.0.1t-1+deb8u6_arm64.deb && \
-   apt-get remove --purge -y curl && \
-   rm -rf /tmp/* /var/tmp/* && \
-   apt-get clean && \
-   rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /data/db && chown -R mongodb:mongodb /data/db
+RUN \
+	#apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10 && \
+	#echo "deb http://repo.mongodb.org/apt/debian wheezy/mongodb-org/3.0 main" | tee /etc/apt/sources.list.d \
+	#| tee /etc/apt/sources.list.d/mongodb-org-3.0.list && \
+	# apt-get update && \
+	# apt-get install -y mongodb && \
+	# apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+	apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/* && \
+    addgroup mongodb && \
+    adduser --system --ingroup mongodb mongodb && \
+    wget http://fastdl.mongodb.org/linux/mongodb-linux-arm64-ubuntu1604-3.4.7.tgz && \
+    tar xf mongodb-linux-arm64-ubuntu1604-3.4.7.tgz && \
+    mv mongodb-linux-aarch64-ubuntu1604-3.4.7/bin/mongod /usr/local/bin && \
+    mv mongodb-linux-aarch64-ubuntu1604-3.4.7/bin/mongo /usr/local/bin && \
+    rm -rf mongo mongodb-linux-arm64-ubuntu1604-3.4.7.tgz mongodb-linux-aarch64-ubuntu1604-3.4.7 && \
+	mkdir /data && mkdir /data/db && \
+	chown mongodb:mongodb /data/db
 
 USER mongodb
 
-# Define mountable directories.
-VOLUME ["/data/db"]
+#copy initialization script for later initialization
+COPY *.js /edgex/mongo/config/
+COPY launch-edgex-mongo.sh /edgex/mongo/config/
 
-# Define working directory.
-WORKDIR /data
-
-# Define default command.
-CMD ["mongod"]
-
-# Expose ports.
-#   - 27017: process
-#   - 28017: http
+#expose Mongodb's port
 EXPOSE 27017
-EXPOSE 28017
+
+CMD /edgex/mongo/config/launch-edgex-mongo.sh
